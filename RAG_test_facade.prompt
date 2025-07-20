@@ -1,0 +1,667 @@
+Prompt: Design and Implement a Modular, Library-Agnostic RAG System
+System Overview
+Create a production-ready Retrieval-Augmented Generation (RAG) system that follows the facade pattern to abstract away implementation details from specific libraries. The system should support swappable components for different retrieval strategies, re-ranking approaches, and evaluation frameworks while maintaining consistent interfaces.
+Core Architecture Requirements
+1. Document Processing Pipeline Facade
+Design an ingestion system that:
+
+Accepts multiple document formats (PDF, TXT, HTML, JSON, CSV)
+Implements configurable chunking strategies with parameters for:
+
+Chunk size (tokens/characters)
+Overlap percentage
+Semantic vs fixed-size chunking
+Document metadata preservation
+
+
+Maintains document lineage and source tracking for citation purposes
+
+2. Encoding Facade (EmbeddingInterface)
+Create an abstraction layer that:
+
+Supports multiple embedding models (OpenAI, Sentence-BERT, Cohere, etc.)
+Handles batch processing with configurable batch sizes
+Implements caching for previously encoded content
+Provides methods for both document and query encoding
+Tracks embedding dimensions and model metadata
+Supports both synchronous and asynchronous operations
+
+3. Sparse Retrieval Facade (SparseRetrieverInterface)
+Implement a facade that:
+
+Abstracts BM25, SPLADE, and other lexical search methods
+Provides standard query interface regardless of backend (Elasticsearch, Lucene, custom implementation)
+Supports field-specific searching and boosting
+Handles query expansion and synonym matching
+Returns normalized scores for hybrid search fusion
+
+4. Dense Retrieval Facade (DenseRetrieverInterface)
+Design an interface that:
+
+Abstracts vector database operations (Milvus, Pinecone, Weaviate, FAISS, etc.)
+Supports multiple similarity metrics (cosine, dot product, L2)
+Implements efficient ANN (Approximate Nearest Neighbor) search
+Handles index management (creation, updates, deletion)
+Provides filtering capabilities based on metadata
+Supports GPU acceleration when available
+
+5. Graph Retrieval Facade (GraphRetrieverInterface)
+Create an abstraction for knowledge graph operations that:
+
+Supports multiple graph databases (Neo4j, ArangoDB, etc.)
+Implements multi-hop traversal with configurable depth
+Provides entity recognition and linking capabilities
+Converts graph structures to natural language context
+Supports hybrid queries combining graph traversal with vector/keyword search
+Handles both structured queries (Cypher, SPARQL) and natural language queries
+
+6. Hybrid Search Orchestrator
+Implement a component that:
+
+Combines results from sparse, dense, and graph retrievers
+Supports multiple fusion strategies:
+
+Static weighted combination with configurable alpha
+Reciprocal Rank Fusion (RRF)
+Dynamic Alpha Tuning using LLM judgment
+
+
+Handles score normalization across different retrieval methods
+Provides query routing logic based on query characteristics
+
+7. Re-ranker Facade (RerankerInterface)
+Design a re-ranking abstraction that:
+
+Supports cross-encoders, ColBERT-style models, and LLM-based re-ranking
+Implements efficient batch processing for candidate documents
+Provides fallback strategies for handling latency constraints
+Supports cascading re-rankers (fast → accurate)
+Tracks re-ranking metrics and confidence scores
+
+8. Query Transformation Module
+Implement pre-retrieval optimizations including:
+
+Multi-query rewriting for different perspectives
+Query decomposition for complex questions
+Step-back prompting for broader context
+Hypothetical Document Embeddings (HyDE)
+Query classification for optimal retrieval strategy selection
+Caching of transformed queries
+
+9. Context Assembly and Generation
+Create a module that:
+
+Assembles retrieved chunks into coherent context
+Handles context window limitations with smart truncation
+Preserves source attribution for citations
+Implements prompt templates for different use cases
+Supports streaming responses
+Manages conversation history in multi-turn scenarios
+
+10. Evaluation and Monitoring Facade (EvaluatorInterface)
+Design a comprehensive evaluation system that:
+
+Implements retrieval metrics:
+
+Context Precision/Relevance
+Context Recall/Sufficiency
+Mean Reciprocal Rank (MRR)
+NDCG@k
+
+
+Implements generation metrics:
+
+Faithfulness/Groundedness
+Answer Relevance
+Answer Correctness
+
+
+Supports both reference-free (LLM-as-judge) and reference-based evaluation
+Provides latency profiling for each pipeline component
+Tracks resource utilization (GPU/CPU/Memory)
+Implements A/B testing capabilities
+Generates performance dashboards and alerts
+
+Configuration Management
+The system should support:
+
+YAML/JSON-based configuration for all components
+Environment-specific settings (dev/staging/prod)
+Dynamic configuration updates without system restart
+Feature flags for gradual rollout of new components
+Preset configurations for common use cases:
+
+Low-latency chatbot
+High-accuracy research assistant
+Enterprise knowledge search
+
+
+
+Performance Optimization Requirements
+
+Implement caching at multiple levels (embedding, retrieval, generation)
+Support horizontal scaling for retrieval components
+Provide GPU/CPU routing based on availability
+Implement request queuing and prioritization
+Support batch processing for offline workloads
+Enable selective component activation based on query complexity
+
+Error Handling and Resilience
+
+Implement fallback strategies for each component failure
+Provide graceful degradation (e.g., sparse-only if dense fails)
+Include retry logic with exponential backoff
+Implement circuit breakers for external services
+Log detailed error traces for debugging
+Maintain system health metrics
+
+Security and Privacy
+
+Support authentication for different retrieval backends
+Implement data access controls at the document level
+Provide audit logging for all operations
+Support data encryption at rest and in transit
+Enable private deployment options
+
+Extensibility Requirements
+
+Plugin architecture for adding new retrieval methods
+Webhook support for custom processing steps
+Standard interfaces for community contributions
+Comprehensive documentation for extending each facade
+Example implementations for common libraries
+
+Deployment Considerations
+
+Docker containers for each component
+Comprehensive monitoring and alerting
+
+Core Architecture Requirements
+1. Document Processing Facade (DocumentProcessorInterface)
+Design an ingestion facade with OpenAI-style API that:
+
+Endpoint: POST /v1/documents/process
+Request Format:
+json{
+  "input": "base64_encoded_content or text",
+  "format": "pdf|txt|html|json|csv",
+  "model": "chunker-v1",  // chunking strategy identifier
+  "encoding_format": "float|base64",
+  "metadata": {},
+  "options": {
+    "chunk_size": 512,
+    "overlap": 50,
+    "strategy": "semantic|fixed|sentence"
+  }
+}
+
+Response Format:
+json{
+  "object": "list",
+  "data": [
+    {
+      "object": "document.chunk",
+      "index": 0,
+      "text": "chunk content",
+      "metadata": {},
+      "embedding": []  // optional pre-computed embedding
+    }
+  ],
+  "model": "chunker-v1",
+  "usage": {
+    "total_tokens": 1024,
+    "chunks_created": 10
+  }
+}
+
+
+2. Encoding Facade (EmbeddingInterface)
+Implement OpenAI-compatible embedding API:
+
+Endpoint: POST /v1/embeddings
+Request Format (OpenAI standard):
+json{
+  "input": ["text1", "text2"] or "single text",
+  "model": "text-embedding-ada-002",
+  "encoding_format": "float|base64"
+}
+
+Response Format (OpenAI standard):
+json{
+  "object": "list",
+  "data": [
+    {
+      "object": "embedding",
+      "embedding": [0.0023064255, -0.009327292, ...],
+      "index": 0
+    }
+  ],
+  "model": "text-embedding-ada-002",
+  "usage": {
+    "prompt_tokens": 8,
+    "total_tokens": 8
+  }
+}
+
+Supports multiple backend models via model parameter routing
+
+3. Sparse Retrieval Facade (SparseRetrieverInterface)
+OpenAI-style search API for lexical retrieval:
+
+Endpoint: POST /v1/search/sparse
+Request Format:
+json{
+  "query": "search terms",
+  "model": "bm25-v1",  // or "splade-v1"
+  "top_k": 10,
+  "filters": {
+    "metadata_field": "value"
+  },
+  "boost_fields": {
+    "title": 2.0,
+    "content": 1.0
+  }
+}
+
+Response Format:
+json{
+  "object": "list",
+  "data": [
+    {
+      "object": "search.result",
+      "document_id": "doc123",
+      "score": 0.95,
+      "text": "matched content",
+      "metadata": {},
+      "highlights": []
+    }
+  ],
+  "model": "bm25-v1",
+  "usage": {
+    "total_documents_scanned": 1000
+  }
+}
+
+
+4. Dense Retrieval Facade (DenseRetrieverInterface)
+Vector search with OpenAI-style API:
+
+Endpoint: POST /v1/search/dense
+Request Format:
+json{
+  "query": "search text" or [0.1, 0.2, ...],  // text or embedding
+  "model": "dense-retriever-v1",
+  "top_k": 10,
+  "similarity_metric": "cosine|dot|l2",
+  "filters": {},
+  "include_embeddings": false
+}
+
+Response Format:
+json{
+  "object": "list",
+  "data": [
+    {
+      "object": "search.result",
+      "document_id": "doc123",
+      "score": 0.89,
+      "text": "retrieved content",
+      "metadata": {},
+      "embedding": []  // if requested
+    }
+  ],
+  "model": "dense-retriever-v1",
+  "usage": {
+    "embedding_tokens": 256
+  }
+}
+
+
+5. Graph Retrieval Facade (GraphRetrieverInterface)
+Knowledge graph search API:
+
+Endpoint: POST /v1/search/graph
+Request Format:
+json{
+  "query": "natural language query",
+  "model": "graph-retriever-v1",
+  "max_hops": 2,
+  "entity_types": ["person", "organization"],
+  "relationship_types": ["founded", "works_at"],
+  "top_k": 10,
+  "include_subgraph": true
+}
+
+Response Format:
+json{
+  "object": "graph.result",
+  "data": {
+    "nodes": [
+      {
+        "id": "node1",
+        "type": "person",
+        "properties": {},
+        "relevance_score": 0.9
+      }
+    ],
+    "edges": [
+      {
+        "source": "node1",
+        "target": "node2",
+        "type": "founded",
+        "properties": {}
+      }
+    ],
+    "natural_language_context": "Person X founded Company Y..."
+  },
+  "model": "graph-retriever-v1",
+  "usage": {
+    "nodes_traversed": 150
+  }
+}
+
+
+6. Hybrid Search Orchestrator
+Unified search API combining all retrieval methods:
+
+Endpoint: POST /v1/search/hybrid
+Request Format:
+json{
+  "query": "search query",
+  "model": "hybrid-v1",
+  "strategies": {
+    "sparse": {
+      "enabled": true,
+      "weight": 0.3,
+      "model": "bm25-v1"
+    },
+    "dense": {
+      "enabled": true,
+      "weight": 0.5,
+      "model": "dense-retriever-v1"
+    },
+    "graph": {
+      "enabled": true,
+      "weight": 0.2,
+      "model": "graph-retriever-v1"
+    }
+  },
+  "fusion_method": "weighted|rrf|dynamic",
+  "top_k": 20
+}
+
+
+7. Re-ranker Facade (RerankerInterface)
+Re-ranking API for result refinement:
+
+Endpoint: POST /v1/rerank
+Request Format:
+json{
+  "query": "original query",
+  "documents": [
+    {
+      "id": "doc1",
+      "text": "document content"
+    }
+  ],
+  "model": "cross-encoder-v1",  // or "colbert-v1", "gpt-4-reranker"
+  "top_k": 5,
+  "return_scores": true
+}
+
+Response Format:
+json{
+  "object": "list",
+  "data": [
+    {
+      "object": "rerank.result",
+      "document_id": "doc1",
+      "relevance_score": 0.98,
+      "original_rank": 5,
+      "reranked_rank": 1
+    }
+  ],
+  "model": "cross-encoder-v1",
+  "usage": {
+    "documents_processed": 20
+  }
+}
+
+
+8. Query Transformation Module
+Query enhancement API:
+
+Endpoint: POST /v1/query/transform
+Request Format:
+json{
+  "query": "original query",
+  "model": "query-transform-v1",
+  "strategies": ["multi_query", "decompose", "step_back", "hyde"],
+  "max_variations": 3
+}
+
+Response Format:
+json{
+  "object": "query.transformation",
+  "original": "original query",
+  "transformations": [
+    {
+      "strategy": "multi_query",
+      "queries": ["variation 1", "variation 2"]
+    },
+    {
+      "strategy": "hyde",
+      "hypothetical_document": "generated document..."
+    }
+  ],
+  "model": "query-transform-v1"
+}
+
+
+9. Context Assembly and Generation
+OpenAI-compatible chat completion with RAG:
+
+Endpoint: POST /v1/chat/completions
+Request Format (OpenAI standard with RAG extensions):
+json{
+  "model": "gpt-3.5-turbo",
+  "messages": [
+    {"role": "user", "content": "question"}
+  ],
+  "temperature": 0.7,
+  "stream": false,
+  "rag_config": {
+    "enabled": true,
+    "search_strategy": "hybrid",
+    "top_k": 10,
+    "include_citations": true,
+    "max_context_tokens": 2000
+  }
+}
+
+Response Format (OpenAI standard with citations):
+json{
+  "id": "chatcmpl-123",
+  "object": "chat.completion",
+  "created": 1677652288,
+  "model": "gpt-3.5-turbo",
+  "choices": [{
+    "index": 0,
+    "message": {
+      "role": "assistant",
+      "content": "answer with citations",
+      "citations": [
+        {
+          "document_id": "doc123",
+          "text": "source text",
+          "metadata": {}
+        }
+      ]
+    },
+    "finish_reason": "stop"
+  }],
+  "usage": {
+    "prompt_tokens": 100,
+    "completion_tokens": 50,
+    "total_tokens": 150,
+    "retrieval_tokens": 500
+  }
+}
+
+
+10. Evaluation and Monitoring Facade
+Evaluation API for testing and monitoring:
+
+Endpoint: POST /v1/evaluate
+Request Format:
+json{
+  "evaluation_type": "retrieval|generation|end_to_end",
+  "test_cases": [
+    {
+      "query": "test question",
+      "expected_answer": "correct answer",
+      "expected_documents": ["doc1", "doc2"]
+    }
+  ],
+  "metrics": ["precision", "recall", "faithfulness", "latency"],
+  "model_config": {
+    "retrieval_model": "hybrid-v1",
+    "generation_model": "gpt-3.5-turbo"
+  }
+}
+
+
+Environment Configuration (.env)
+bash# Document Processing Service
+DOCUMENT_PROCESSOR_URL=http://document-processor
+DOCUMENT_PROCESSOR_PORT=8001
+
+# Embedding Service
+EMBEDDING_SERVICE_URL=http://embedding-service
+EMBEDDING_SERVICE_PORT=8002
+
+# Sparse Retrieval Service
+SPARSE_RETRIEVAL_URL=http://sparse-retrieval
+SPARSE_RETRIEVAL_PORT=8003
+
+# Dense Retrieval Service
+DENSE_RETRIEVAL_URL=http://dense-retrieval
+DENSE_RETRIEVAL_PORT=8004
+
+# Graph Retrieval Service
+GRAPH_RETRIEVAL_URL=http://graph-retrieval
+GRAPH_RETRIEVAL_PORT=8005
+
+# Hybrid Search Orchestrator
+HYBRID_SEARCH_URL=http://hybrid-search
+HYBRID_SEARCH_PORT=8006
+
+# Reranker Service
+RERANKER_SERVICE_URL=http://reranker
+RERANKER_SERVICE_PORT=8007
+
+# Query Transform Service
+QUERY_TRANSFORM_URL=http://query-transform
+QUERY_TRANSFORM_PORT=8008
+
+# RAG Generation Service
+RAG_GENERATION_URL=http://rag-generation
+RAG_GENERATION_PORT=8009
+
+# Evaluation Service
+EVALUATION_SERVICE_URL=http://evaluation
+EVALUATION_SERVICE_PORT=8010
+
+# External Services
+OPENAI_API_KEY=sk-...
+ELASTICSEARCH_URL=http://elasticsearch:9200
+MILVUS_URL=http://milvus:19530
+NEO4J_URL=bolt://neo4j:7687
+NEO4J_USER=neo4j
+NEO4J_PASSWORD=password
+
+# Performance Settings
+MAX_WORKERS=4
+REQUEST_TIMEOUT=30
+CACHE_TTL=3600
+Docker Compose Structure
+yamlversion: '3.8'
+
+services:
+  # API Gateway (optional - routes to all services)
+  api-gateway:
+    build: ./api-gateway
+    ports:
+      - "${API_GATEWAY_PORT:-8000}:8000"
+    env_file: .env
+    depends_on:
+      - document-processor
+      - embedding-service
+      - sparse-retrieval
+      - dense-retrieval
+      - graph-retrieval
+      - hybrid-search
+      - reranker
+      - query-transform
+      - rag-generation
+      - evaluation
+
+  document-processor:
+    build: ./services/document-processor
+    ports:
+      - "${DOCUMENT_PROCESSOR_PORT:-8001}:8001"
+    env_file: .env
+    volumes:
+      - ./data:/data
+
+  embedding-service:
+    build: ./services/embedding
+    ports:
+      - "${EMBEDDING_SERVICE_PORT:-8002}:8002"
+    env_file: .env
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]
+
+  # Additional services follow similar pattern...
+
+  # Data stores
+  elasticsearch:
+    image: elasticsearch:8.11.0
+    environment:
+      - discovery.type=single-node
+      - xpack.security.enabled=false
+    ports:
+      - "9200:9200"
+
+  milvus:
+    image: milvusdb/milvus:latest
+    ports:
+      - "19530:19530"
+
+  neo4j:
+    image: neo4j:latest
+    ports:
+      - "7474:7474"
+      - "7687:7687"
+    environment:
+      - NEO4J_AUTH=neo4j/password
+
+  redis:
+    image: redis:alpine
+    ports:
+      - "6379:6379"
+Testing and Development Features
+
+Health check endpoints for each service: GET /health
+Swagger/OpenAPI documentation: GET /docs
+Metrics endpoint for Prometheus: GET /metrics
+Request tracing headers support
+Hot-reload for development mode
+Integrated logging with correlation IDs
+
+This architecture enables teams to start with simple implementations and progressively enhance their RAG system by swapping in more sophisticated components as needed, while maintaining OpenAI-compatible APIs for easy integration with existing tools and libraries.
