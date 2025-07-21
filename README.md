@@ -1,6 +1,6 @@
 # RAG Test Facade System
 
-A production-ready, modular Retrieval-Augmented Generation (RAG) system built with the facade pattern. Provides OpenAI-compatible APIs while abstracting away implementation details for maximum flexibility.
+A prototype, modular Retrieval-Augmented Generation (RAG) system built with the facade pattern. Provides OpenAI-compatible APIs while abstracting away implementation details for maximum flexibility.
 
 ## 📋 Table of Contents
 
